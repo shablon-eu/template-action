@@ -226,10 +226,12 @@ git push origin v1.0.0
 The [release workflow](.github/workflows/release.yml) then:
 
 1. checks that `dist/` is up to date and the tests pass,
-2. creates the GitHub release `v1.0.0` with generated release notes,
+2. creates a **draft** GitHub release `v1.0.0` with generated release notes,
 3. moves the floating tags **`v1.0`** and **`v1`** to the new release.
 
 So users can pin `@v1` (all 1.x updates), `@v1.0` (patch updates only) or `@v1.0.0` (exact version).
+
+Then publish the draft yourself. GitHub has no API for listing a release on the Marketplace, so this step is manual: go to **Releases**, edit the `v1.0.0` draft, make sure **Publish this Action to the GitHub Marketplace** is ticked, and click **Publish release**. The workflow run summary links to the Releases page.
 
 A floating tag only moves if the new release is the newest in its line. A `v1.0.2` hotfix released after `v1.1.0` updates `v1.0`, but `v1` stays on `v1.1.0`. Pre-release tags such as `v1.1.0-rc.1` don't trigger the workflow.
 

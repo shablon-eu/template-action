@@ -2,8 +2,10 @@ name: Release
 
 # Push a tag like v1.2.3 to release. This workflow then
 #   1. checks that dist/ is up to date and the tests pass,
-#   2. creates the GitHub release for v1.2.3,
+#   2. creates a draft GitHub release for v1.2.3,
 #   3. moves the floating tags v1.2 and v1 to it (only if it's the newest release in that line).
+# Then publish the draft by hand (Releases -> Edit -> tick "Publish this Action to the GitHub
+# Marketplace" -> Publish release). GitHub has no API for the Marketplace checkbox.
 on:
   push:
     tags:
@@ -47,14 +49,21 @@ jobs:
           fi
       - run: npm test
 
-      - name: Create GitHub release
+      - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists."
           else
-            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" --generate-notes
+          fi
+          if [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == "true" ]]; then
+            {
+              echo "### Draft release ${TAG} is ready"
+              echo
+              echo "To publish it to the GitHub Marketplace, open [Releases](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases), edit the **${TAG}** draft, make sure **Publish this Action to the GitHub Marketplace** is ticked, and click **Publish release**."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Update floating tags
