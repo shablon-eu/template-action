@@ -9,6 +9,11 @@ test('extractSubject reads mj-title and decodes entities', () => {
   assert.equal(extractSubject('<mjml><!-- <mj-title>x</mj-title> --></mjml>'), null);
 });
 
+test('extractSubject accepts closing tags wrapped the way Prettier writes them', () => {
+  const markup = '<mjml>\n  <mj-head>\n    <mj-title\n      >Hi {{ name }}\n      there</mj-title\n    >\n  </mj-head\n  >\n</mjml>\n';
+  assert.equal(extractSubject(markup), 'Hi {{ name }} there');
+});
+
 test('mjml without yaml uses mj-title as subject and name', async () => {
   const dir = await makeDir({ 'welcome.mjml': mjml('Welcome!') });
   const { templates, errors } = await loadTemplates(dir);

@@ -37503,9 +37503,9 @@ function overlapWarnings(slug, variants) {
 }
 function extractSubject(markup) {
   const withoutComments = markup.replace(/<!--[\s\S]*?-->/g, "");
-  const head = withoutComments.match(/<mj-head\b[^>]*>([\s\S]*?)<\/mj-head>/i);
+  const head = withoutComments.match(/<mj-head\b[^>]*>([\s\S]*?)<\/mj-head\s*>/i);
   const source = head ? head[1] : withoutComments;
-  const title = source.match(/<mj-title\b[^>]*>([\s\S]*?)<\/mj-title>/i);
+  const title = source.match(/<mj-title\b[^>]*>([\s\S]*?)<\/mj-title\s*>/i);
   if (!title) return null;
   const text = decodeEntities(title[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).replace(/\s+/g, " ").trim();
   return text || null;
