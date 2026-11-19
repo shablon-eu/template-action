@@ -42,6 +42,14 @@ const UNSUPPORTED_FIELDS = {
 const SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /**
+ * How a template's slug is derived from where its file sits below `basePath`:
+ * `file` uses the bare file name (`partials/header.mjml` → `header`), `path`
+ * keeps the folders (`partials/header.mjml` → `partials/header`), which is the
+ * slug Shablon resolves `<mj-include path="partials/header.mjml" />` to.
+ */
+export const SLUG_MODES = ['file', 'path'];
+
+/**
  * @typedef {{ file?: string, line?: number, column?: number, slug?: string }} Location
  *
  * A template without variants: one `<slug>.mjml` (+ optional `<slug>.yaml`).
@@ -69,12 +77,14 @@ const SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /**
  * Recursively find all template files below `basePath` and group them by slug.
- * `welcome.de.mjml` belongs to slug `welcome`, variant `de`.
+ * `welcome.de.mjml` belongs to slug `welcome`, variant `de`. With
+ * `slugFrom: 'path'`, `partials/header.mjml` belongs to slug `partials/header`.
  *
  * @param {string} basePath
+ * @param {{ slugFrom?: 'file' | 'path' }} [options]
  * @returns {Promise<Map<string, FileGroup>>}
  */
-export async function discoverTemplateFiles(basePath) {
+export async function discoverTemplateFiles(basePath, { slugFrom = 'file' } = {}) {
   let info;
   try {
     info = await stat(basePath);
@@ -99,7 +109,9 @@ export async function discoverTemplateFiles(basePath) {
 
     const base = path.basename(entry.name, path.extname(entry.name));
     const dot = base.indexOf('.');
-    const slug = dot === -1 ? base : base.slice(0, dot);
+    const name = dot === -1 ? base : base.slice(0, dot);
+    const folder = path.relative(basePath, path.dirname(full)).split(path.sep).filter(Boolean);
+    const slug = slugFrom === 'path' ? [...folder, name].join('/') : name;
     const variant = dot === -1 ? null : base.slice(dot + 1);
 
     const group = bySlug.get(slug) ?? { mjml: [], config: [], variants: new Map(), variantConfig: [] };
@@ -121,10 +133,11 @@ export async function discoverTemplateFiles(basePath) {
  * Never throws for per-template problems; those are collected in `errors`.
  *
  * @param {string} basePath
+ * @param {{ slugFrom?: 'file' | 'path' }} [options] see {@link discoverTemplateFiles}
  * @returns {Promise<{ templates: (TemplateDefinition | VariantSetDefinition)[], errors: TemplateError[], warnings: TemplateError[] }>}
  */
-export async function loadTemplates(basePath) {
-  const files = await discoverTemplateFiles(basePath);
+export async function loadTemplates(basePath, options) {
+  const files = await discoverTemplateFiles(basePath, options);
   const templates = [];
   const errors = [];
   const warnings = [];
@@ -148,9 +161,9 @@ export async function loadTemplates(basePath) {
  */
 async function loadTemplate(slug, group) {
   const anyFile = group.config[0] ?? group.mjml[0] ?? [...group.variants.values()][0]?.[0] ?? group.variantConfig[0];
-  if (!SLUG_PATTERN.test(slug)) {
+  if (!slug.split('/').every((segment) => SLUG_PATTERN.test(segment))) {
     throw new TemplateError(
-      `Invalid template slug "${slug}" (derived from the file name). Use only letters, digits, "-" and "_", starting with a letter or digit.`,
+      `Invalid template slug "${slug}" (derived from the file name${slug.includes('/') ? ' and its folders' : ''}). Use only letters, digits, "-" and "_", starting with a letter or digit.`,
       { slug, file: anyFile },
     );
   }
@@ -209,10 +222,12 @@ async function loadTemplate(slug, group) {
 
   const { config, locs } = parsed;
   const markup = await readMarkup(slug, mjmlFile);
-  const subject = config.subject ?? extractSubject(markup);
-  const name = config.name ?? subject;
+  // A snippet is only ever included into other templates, never sent, so its
+  // subject is never shown. Shablon still stores one, so it gets an empty one.
+  const subject = config.subject ?? extractSubject(markup) ?? '';
+  const name = config.name ?? (subject || slug);
 
-  if (!subject) {
+  if (!subject && !config.snippet) {
     const where = configFile
       ? `Add \`subject:\` to ${path.basename(configFile)} or an <mj-title> to ${path.basename(mjmlFile)}.`
       : `Add a \`${slug}.yaml\` with \`name:\` and \`subject:\`, or an <mj-title> inside <mj-head> of ${path.basename(mjmlFile)}.`;

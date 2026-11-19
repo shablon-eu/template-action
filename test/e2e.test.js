@@ -112,6 +112,32 @@ test('creates, then leaves unchanged, then updates', async () => {
   assert.deepEqual(Object.keys(patch.body).sort(), ['markup', 'name', 'subject', 'type']);
 });
 
+test('slugFrom: path syncs partials as snippets under their include path', async () => {
+  const files = {
+    'templates/notice.mjml': '<mjml><mj-head><mj-title>Notice</mj-title></mj-head><mj-body><mj-include path="partials/header.mjml" /></mj-body></mjml>\n',
+    'templates/partials/header.mjml': '<mj-section><mj-column><mj-text>Header</mj-text></mj-column></mj-section>\n',
+    'templates/partials/header.yaml': 'snippet: true\n',
+  };
+
+  let r = await runAction(files, { slugFrom: 'path' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /partials\/header: created/);
+  const header = [...store.values()].find((t) => t.slug === 'partials/header');
+  assert.equal(header.snippet, true);
+  assert.equal(header.subject, '');
+  assert.equal(header.name, 'partials/header');
+
+  r = await runAction(files, { slugFrom: 'path' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /partials\/header: unchanged/);
+});
+
+test('an unknown slugFrom fails before anything is read', async () => {
+  const r = await runAction({ 'templates/a.mjml': mjml('A') }, { slugFrom: 'folder' });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /Invalid `slugFrom` input "folder"/);
+});
+
 test('validation errors fail with file annotations and nothing is synced', async () => {
   const before = requests.length;
   const r = await runAction({

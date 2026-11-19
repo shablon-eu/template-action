@@ -2,7 +2,7 @@ import path from 'node:path';
 import * as core from '@actions/core';
 import { ShablonClient, ApiError } from './api.js';
 import { TemplateError } from './errors.js';
-import { loadTemplates, toTemplateError } from './templates.js';
+import { SLUG_MODES, loadTemplates, toTemplateError } from './templates.js';
 import { PRUNE_MODES, syncDefinition } from './sync.js';
 
 export async function run() {
@@ -16,6 +16,11 @@ export async function run() {
     core.setFailed(`Invalid \`prune\` input "${prune}". Use one of: ${PRUNE_MODES.join(', ')}.`);
     return;
   }
+  const slugFrom = core.getInput('slugFrom') || 'file';
+  if (!SLUG_MODES.includes(slugFrom)) {
+    core.setFailed(`Invalid \`slugFrom\` input "${slugFrom}". Use one of: ${SLUG_MODES.join(', ')}.`);
+    return;
+  }
 
   const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
   const basePath = path.resolve(workspace, basePathInput);
@@ -24,7 +29,7 @@ export async function run() {
 
   let loaded;
   try {
-    loaded = await loadTemplates(basePath);
+    loaded = await loadTemplates(basePath, { slugFrom });
   } catch (err) {
     const e = toTemplateError(err);
     core.setFailed(e.message);

@@ -37253,7 +37253,8 @@ var UNSUPPORTED_FIELDS = {
   text: "`text` is only used by `raw` templates, which this action does not support (only `mjml`)."
 };
 var SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
-async function discoverTemplateFiles(basePath) {
+var SLUG_MODES = ["file", "path"];
+async function discoverTemplateFiles(basePath, { slugFrom = "file" } = {}) {
   let info2;
   try {
     info2 = await stat2(basePath);
@@ -37273,7 +37274,9 @@ async function discoverTemplateFiles(basePath) {
     if (full.split(path6.sep).includes("node_modules")) continue;
     const base = path6.basename(entry.name, path6.extname(entry.name));
     const dot = base.indexOf(".");
-    const slug = dot === -1 ? base : base.slice(0, dot);
+    const name = dot === -1 ? base : base.slice(0, dot);
+    const folder = path6.relative(basePath, path6.dirname(full)).split(path6.sep).filter(Boolean);
+    const slug = slugFrom === "path" ? [...folder, name].join("/") : name;
     const variant = dot === -1 ? null : base.slice(dot + 1);
     const group2 = bySlug.get(slug) ?? { mjml: [], config: [], variants: /* @__PURE__ */ new Map(), variantConfig: [] };
     if (variant === null) {
@@ -37287,8 +37290,8 @@ async function discoverTemplateFiles(basePath) {
   }
   return new Map([...bySlug.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
-async function loadTemplates(basePath) {
-  const files = await discoverTemplateFiles(basePath);
+async function loadTemplates(basePath, options2) {
+  const files = await discoverTemplateFiles(basePath, options2);
   const templates = [];
   const errors = [];
   const warnings = [];
@@ -37305,9 +37308,9 @@ async function loadTemplates(basePath) {
 }
 async function loadTemplate(slug, group2) {
   const anyFile = group2.config[0] ?? group2.mjml[0] ?? [...group2.variants.values()][0]?.[0] ?? group2.variantConfig[0];
-  if (!SLUG_PATTERN.test(slug)) {
+  if (!slug.split("/").every((segment) => SLUG_PATTERN.test(segment))) {
     throw new TemplateError(
-      `Invalid template slug "${slug}" (derived from the file name). Use only letters, digits, "-" and "_", starting with a letter or digit.`,
+      `Invalid template slug "${slug}" (derived from the file name${slug.includes("/") ? " and its folders" : ""}). Use only letters, digits, "-" and "_", starting with a letter or digit.`,
       { slug, file: anyFile }
     );
   }
@@ -37358,9 +37361,9 @@ async function loadTemplate(slug, group2) {
   }
   const { config, locs } = parsed;
   const markup = await readMarkup(slug, mjmlFile);
-  const subject = config.subject ?? extractSubject(markup);
-  const name = config.name ?? subject;
-  if (!subject) {
+  const subject = config.subject ?? extractSubject(markup) ?? "";
+  const name = config.name ?? (subject || slug);
+  if (!subject && !config.snippet) {
     const where = configFile ? `Add \`subject:\` to ${path6.basename(configFile)} or an <mj-title> to ${path6.basename(mjmlFile)}.` : `Add a \`${slug}.yaml\` with \`name:\` and \`subject:\`, or an <mj-title> inside <mj-head> of ${path6.basename(mjmlFile)}.`;
     throw new TemplateError(
       `Template "${slug}" has no subject${config.name ? "" : " and no name"}: ${where}`,
@@ -37818,12 +37821,17 @@ async function run() {
     setFailed(`Invalid \`prune\` input "${prune}". Use one of: ${PRUNE_MODES.join(", ")}.`);
     return;
   }
+  const slugFrom = getInput("slugFrom") || "file";
+  if (!SLUG_MODES.includes(slugFrom)) {
+    setFailed(`Invalid \`slugFrom\` input "${slugFrom}". Use one of: ${SLUG_MODES.join(", ")}.`);
+    return;
+  }
   const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
   const basePath = path8.resolve(workspace, basePathInput);
   info(`Looking for templates in ${basePath}${dryRun ? " (dry run)" : ""}`);
   let loaded;
   try {
-    loaded = await loadTemplates(basePath);
+    loaded = await loadTemplates(basePath, { slugFrom });
   } catch (err) {
     const e = toTemplateError(err);
     setFailed(e.message);

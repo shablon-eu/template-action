@@ -26,6 +26,13 @@ inputs:
       `disable` (set `enabled: false`), `delete`, or `warn` (leave it and add a warning annotation).
     required: false
     default: disable
+  slugFrom:
+    description: >-
+      How a template's slug is derived: `file` uses the file name (`partials/header.mjml` → `header`),
+      `path` keeps the folders below `basePath` (`partials/header.mjml` → `partials/header`), the slug
+      Shablon resolves `<mj-include path="partials/header.mjml" />` to.
+    required: false
+    default: file
 
 outputs:
   created:

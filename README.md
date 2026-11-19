@@ -43,6 +43,7 @@ To check templates in pull requests without changing anything, set `dryRun: true
 | `basePath` | yes      |                          | Folder with the templates, relative to the repository root. Searched recursively. |
 | `apiUrl`   | no       | `https://api.shablon.eu` | Base URL of the Shablon API.                                                |
 | `dryRun`   | no       | `false`                  | Validate and report what would change, without creating or updating anything. |
+| `slugFrom` | no       | `file`                   | How the slug is derived: `file` uses the file name, `path` keeps the folders below `basePath`. See [Snippets and `<mj-include>`](#snippets-and-mj-include). |
 | `prune`    | no       | `disable`                | What to do with a Shablon template that has the slug of a `variants:` file but matches none of its variants: `disable` sets `enabled: false`, `delete` deletes it, `warn` leaves it as it is and adds a warning annotation. See [Removed variants](#removed-variants). |
 
 ### Outputs
@@ -60,6 +61,22 @@ Templates are listed as `<slug>`, variants as `<slug>.<variant>` and pruned temp
 ## Template files
 
 Every `<slug>.mjml` below `basePath` is one template. The **file name is the slug**, so slugs must be unique across all sub-folders and may only contain letters, digits, `-` and `_`. A file name with a dot, such as `<slug>.<variant>.mjml`, is a [variant](#variants-discriminators).
+
+With `slugFrom: path`, the folders below `basePath` are part of the slug instead: `partials/header.mjml` is the template `partials/header`. Every folder name follows the same rules as a slug, and the same file name may then appear in different folders.
+
+### Snippets and `<mj-include>`
+
+Shablon resolves `<mj-include path="partials/header.mjml" />` to the snippet with the slug `partials/header`. To keep shared partials in a sub-folder and include them by their path, set `slugFrom: path` and mark each partial as a snippet:
+
+```
+emails/
+├── welcome.mjml              → "welcome", includes partials/header.mjml
+└── partials/
+    ├── header.mjml           → snippet "partials/header"
+    └── header.yaml           → snippet: true
+```
+
+A snippet is never sent, so it needs no subject: without `subject:` or an `<mj-title>` it is stored with an empty subject, and it is named after its slug unless `name:` is set.
 
 ### `<slug>.yaml` (optional)
 
