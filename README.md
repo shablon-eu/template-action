@@ -267,4 +267,4 @@ Then publish the draft yourself. GitHub has no API for listing a release on the 
 
 A floating tag only moves if the new release is the newest in its line. A `v1.0.2` hotfix released after `v1.1.0` updates `v1.0`, but `v1` stays on `v1.1.0`. Pre-release tags such as `v1.1.0-rc.1` don't trigger the workflow.
 
-To re-run it for an existing tag (for example, after a failed run), use **Actions → Release → Run workflow** and enter the tag.
+You can also release without pushing a tag yourself: use **Actions → Release → Run workflow**, pick the branch and enter the tag (e.g. `v1.0.0`). If the tag doesn't exist yet, the workflow creates it at the head of that branch once the checks pass. Running it again with an existing tag re-runs the release for that tag (for example, after a failed run).

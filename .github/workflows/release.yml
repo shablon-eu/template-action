@@ -1,9 +1,10 @@
 name: Release
 
-# Push a tag like v1.2.3 to release. This workflow then
+# Push a tag like v1.2.3 to release, or run the workflow by hand with a tag name. This workflow then
 #   1. checks that dist/ is up to date and the tests pass,
-#   2. creates a draft GitHub release for v1.2.3,
-#   3. moves the floating tags v1.2 and v1 to it (only if it's the newest release in that line).
+#   2. creates the tag v1.2.3 at the selected branch's head if it doesn't exist yet (manual runs only),
+#   3. creates a draft GitHub release for v1.2.3,
+#   4. moves the floating tags v1.2 and v1 to it (only if it's the newest release in that line).
 # Then publish the draft by hand (Releases -> Edit -> tick "Publish this Action to the GitHub
 # Marketplace" -> Publish release). GitHub has no API for the Marketplace checkbox.
 on:
@@ -13,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag (e.g. v1.0.0) to (re-)publish and point v1.0 / v1 at
+        description: Release tag (e.g. v1.0.0) to (re-)publish and point v1.0 / v1 at. Created at the head of the selected branch if it doesn't exist.
         required: true
 
 concurrency:
@@ -31,9 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: refs/tags/${{ env.TAG }}
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${TAG}' is not a release tag of the form vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          if git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} exists, releasing it."
+            git checkout --detach "refs/tags/${TAG}"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag ${TAG} does not exist, it will be created at ${GITHUB_REF_NAME} ($(git rev-parse --short HEAD)) once the checks pass."
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v5
         with:
@@ -48,6 +64,14 @@ jobs:
             exit 1
           fi
       - run: npm test
+
+      - name: Create tag
+        if: steps.tag.outputs.create == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "refs/tags/${TAG}"
 
       - name: Create draft GitHub release
         env:
